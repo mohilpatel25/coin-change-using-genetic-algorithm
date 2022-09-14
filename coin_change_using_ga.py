@@ -1,84 +1,108 @@
-import random
 import numpy as np
 import pandas as pd
 
-import warnings
 
-warnings.filterwarnings('ignore')
+class Chromosome:
 
-d = [1, 2, 3, 4, 5, 6, 7, 8, 'Fitness']  # denominations
-N = 50  # total amount
-size = 10  # population size
+  def __init__(self, size, N, denominations) -> None:
+    self.N = N
+    self.size = size
+    self.genes = np.random.randint(0, N, size)
+    self.denominations = denominations
 
-# population generation
-population = []
-for i in range(size):
-    c = []
-    for j in range(len(d)):
-        c.append(random.randint(0, N))
-    population.append(c)
+  @property
+  def fitness(self):
+    return 1 / (1 + np.abs(np.sum(self.genes * self.denominations) - self.N))
 
-population = pd.DataFrame(population, columns=d)
-population = population.astype({'Fitness': float})
-for i in range(size):
-    fitness = 0
-    for j in range(len(d) - 1):
-        fitness += population[d[j]][i] * d[j]
+  def __lt__(self, __o: object) -> bool:
+    return self.fitness > __o.fitness
 
-    fitness = abs(fitness - N)
-    population['Fitness'][i] = 1 / (1 + float(fitness))
+  def __eq__(self, __o: object) -> bool:
+    return self.fitness == __o.fitness
 
-pop = population.copy()
-pop['Fitness'] = round(pop['Fitness'], 4)
-print(pop)
+  def __gt__(self, __o: object) -> bool:
+    return self.fitness < __o.fitness
 
-# genetic algorithm
-cnt = 1
-while (True):
-    for i in range(size):
-        fitness = 0
-        for j in range(len(d) - 1):
-            fitness += population[d[j]][i] * d[j]
+  def single_point_crossover(self, chromosome):
+    crossover_point = np.random.randint(1, self.size - 1)
+    offspring1 = Chromosome(self.size, self.N, self.denominations)
+    offspring1.genes = np.concatenate(
+        (self.genes[:crossover_point], chromosome.genes[crossover_point:]))
+    offspring2 = Chromosome(self.size, self.N, self.denominations)
+    offspring2.genes = np.concatenate(
+        (chromosome.genes[:crossover_point], self.genes[crossover_point:]))
+    return offspring1, offspring2
 
-        fitness = abs(fitness - N)
-        population['Fitness'][i] = 1 / (1 + float(fitness))
+  def mutate(self, mutation_probability):
+    self.genes = np.where(
+        np.random.random(self.size) < mutation_probability,
+        np.random.randint(0, self.N, self.size), self.genes)
 
-    population = population.sort_values(by=['Fitness'])
 
-    parents = population[-6:].reset_index()
-    offspring = population[:3].reset_index()
+class GeneticAlgorithm:
 
-    # crossover
-    for i in range(3):
-        r = random.randint(0, len(d) - 1)
-        for j in range(len(d) - 1):
-            if (j < r):
-                offspring[d[j]][i] = parents[d[j]][i]
-            else:
-                offspring[d[j]][i] = parents[d[j]][6 - i - 1]
+  def __init__(self,
+               population_size,
+               denominations,
+               N,
+               selection_ratio=0.4,
+               mutation_prob=0.75) -> None:
+    self.population_size = population_size
+    self.selection_ration = selection_ratio
+    self.mutation_prob = mutation_prob
+    self.chromosome_length = len(denominations)
+    self.chromosomes = sorted([
+        Chromosome(self.chromosome_length, N, denominations)
+        for i in range(population_size)
+    ])
 
-    # mutation
-    mutation_p = 0.75  # mutation probability
-    for i in range(3):
-        for j in range(len(d) - 1):
-            p = random.random()
-            if (p > mutation_p):
-                offspring[d[j]][i] = random.randint(0, N)
-    population = population[3:]
-    population = population.append(offspring, ignore_index=True)
-    population = population.drop(['index'], axis=1)
+  def crossover(self, parents):
+    return parents[0].single_point_crossover(parents[1])
 
-    pop = population.copy().sort_values(by=['Fitness']).reset_index()
-    pop['Fitness'] = round(pop['Fitness'], 4)
-    pop = pop.drop(['index'], axis=1)
+  def mutatation(self, offsprings, mutation_prob):
+    for offspring in offsprings:
+      offspring.mutate(mutation_prob)
+    return offsprings
 
-    if (max(population['Fitness']) == 1):
-        break
+  def next_generation(self):
+    n_selection = int(self.population_size * self.selection_ration)
+    n_selection = (n_selection // 2) * 2
+    fittest_individuals = self.chromosomes[:n_selection]
 
-    if (cnt % 100 == 0):
-        print(max(population['Fitness']))
-    cnt += 1
+    offsprings = []
+    for i in range(0, n_selection, 2):
+      offsprings += self.crossover(fittest_individuals[i:i + 2])
 
-population = population.sort_values(by=['Fitness']).reset_index()
-population = population[-1:]
-print(population)
+    offsprings = self.mutatation(offsprings, self.mutation_prob)
+
+    self.chromosomes += offsprings
+    self.chromosomes = sorted(self.chromosomes)[:self.population_size]
+
+  def fittest_chromosome(self):
+    return self.chromosomes[0]
+
+  def evolve(self, log_freq=1000):
+    generations = 0
+    while self.fittest_chromosome().fitness < 1:
+      ga.next_generation()
+      if generations % 100 == 0:
+        print(
+            f'Generation {generations}: Max fitness = {self.fittest_chromosome().fitness}'
+        )
+      generations += 1
+    return self.fittest_chromosome()
+
+
+if __name__ == '__main__':
+  population_size = 10
+  denominations = np.array([1, 2, 3, 4, 5, 7, 8])
+  N = 50
+
+  ga = GeneticAlgorithm(population_size, denominations, N)
+  solution = ga.evolve()
+
+  print('\nSolution Found')
+  soln_table = pd.DataFrame(columns=['Denominations', 'Count'])
+  soln_table['Denominations'] = denominations
+  soln_table['Count'] = solution.genes
+  print(soln_table.to_string(index=False))
