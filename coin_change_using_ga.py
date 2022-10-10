@@ -1,8 +1,12 @@
+"""Implementation of Coin change problem using Genetic Algorithm."""
+
 import numpy as np
 import pandas as pd
 
 
 class Chromosome:
+  """Class to manage individual chromosomes in genetic algorithm.
+  """
 
   def __init__(self, size, N, denominations) -> None:
     self.N = N
@@ -14,14 +18,14 @@ class Chromosome:
   def fitness(self):
     return 1 / (1 + np.abs(np.sum(self.genes * self.denominations) - self.N))
 
-  def __lt__(self, __o: object) -> bool:
-    return self.fitness > __o.fitness
+  def __lt__(self, o: object) -> bool:
+    return self.fitness > o.fitness
 
-  def __eq__(self, __o: object) -> bool:
-    return self.fitness == __o.fitness
+  def __eq__(self, o: object) -> bool:
+    return self.fitness == o.fitness
 
-  def __gt__(self, __o: object) -> bool:
-    return self.fitness < __o.fitness
+  def __gt__(self, o: object) -> bool:
+    return self.fitness < o.fitness
 
   def single_point_crossover(self, chromosome):
     crossover_point = np.random.randint(1, self.size - 1)
@@ -40,6 +44,8 @@ class Chromosome:
 
 
 class GeneticAlgorithm:
+  """Class to manage genetic algorithm for 0/1 Knapsack problem.
+  """
 
   def __init__(self,
                population_size,
@@ -85,10 +91,9 @@ class GeneticAlgorithm:
     generations = 0
     while self.fittest_chromosome().fitness < 1:
       ga.next_generation()
-      if generations % 100 == 0:
-        print(
-            f'Generation {generations}: Max fitness = {self.fittest_chromosome().fitness}'
-        )
+      if generations % log_freq == 0:
+        max_fitness = self.fittest_chromosome().fitness
+        print(f'Generation {generations}: Max fitness = {max_fitness}')
       generations += 1
     return self.fittest_chromosome()
 
